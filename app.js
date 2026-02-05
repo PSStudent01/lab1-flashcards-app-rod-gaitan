@@ -247,7 +247,18 @@
 			});
 		}
 
-		function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[s]); }
+        //refactored for simplicity
+        //function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[s]); }
+        function escapeHtml(str) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+                 };
+            return String(str).replace(/[&<>"']/g, char => map[char]);
+            }
 
 		function selectDeck(id){
 			const deck = DeckStore.getDeck(Number(id));
