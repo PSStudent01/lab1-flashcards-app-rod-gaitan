@@ -25,29 +25,38 @@
     <header>
       <h1>Flashcards</h1>
       <nav aria-label="App actions">
-        <button id="new-deck">New Deck</button>
+        <button id="new-deck-btn">New Deck</button>
       </nav>
     </header>
 
-    <aside>
+    <aside class="sidebar">
       <h2>Decks</h2>
       <ul class="deck-list" id="deck-list">
         <li data-deck-id="1" tabindex="0">Sample Deck</li>
       </ul>
     </aside>
 
-    <main>
-      <section aria-live="polite">
-        <article class="card" id="card">
-          <h3 id="card-front">Card Front</h3>
-          <p id="card-back" hidden>Card Back</p>
-        </article>
-
-        <div class="controls">
-          <button id="prev">Prev</button>
-          <button id="flip">Flip</button>
-          <button id="next">Next</button>
+    <main class="main-content">
+      <section class="deck-header">
+        <h2 id="deck-title">Select a deck</h2>
+        <div class="deck-toolbar">
+          <button id="new-card-btn">New Card</button>
         </div>
+      </section>
+
+      <section class="card-area" aria-live="polite">
+        <article class="card">
+          <div class="card-front">Front</div>
+          <div class="card-back">Back</div>
+        </article>
+      </section>
+
+      <section class="card-controls">
+        <button id="prev-card-btn">Previous</button>
+        <button id="flip-card-btn">Flip</button>
+        <button id="next-card-btn">Next</button>
+        <button data-action="edit-card">Edit</button>
+        <button data-action="delete-card">Delete</button>
       </section>
     </main>
 

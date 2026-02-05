@@ -194,16 +194,34 @@
 
 		function renderCard(){
 			const deck = DeckStore.getDeck(Number(currentDeckId));
-			if (!deck){ if (ui.cardFront) ui.cardFront.textContent = 'Front'; if (ui.cardBack) ui.cardBack.textContent = 'Back'; return; }
+			const cardEl = document.querySelector('.card');
+			// ensure inner wrapper exists for 3D flip
+			if (cardEl && !cardEl.querySelector('.card-inner')){
+				const front = cardEl.querySelector('.card-front');
+				const back = cardEl.querySelector('.card-back');
+				const inner = document.createElement('div'); inner.className = 'card-inner';
+				// move faces into inner
+				if (front) inner.appendChild(front);
+				if (back) inner.appendChild(back);
+				cardEl.appendChild(inner);
+			}
+
+			if (!deck){
+				if (ui.cardFront) ui.cardFront.textContent = 'Front';
+				if (ui.cardBack) ui.cardBack.textContent = 'Back';
+				if (cardEl) cardEl.classList.remove('is-flipped');
+				return;
+			}
 			const idx = deck.currentIndex || 0;
 			const card = deck.cards[idx];
 			if (card){
-				ui.cardFront.textContent = card.front || '';
-				ui.cardBack.textContent = card.back || '';
-				const cardEl = document.querySelector('.card');
-				if (cardEl) cardEl.classList.remove('flipped');
+				if (ui.cardFront) ui.cardFront.textContent = card.front || '';
+				if (ui.cardBack) ui.cardBack.textContent = card.back || '';
+				if (cardEl) cardEl.classList.remove('is-flipped');
 			} else {
-				ui.cardFront.textContent = 'No cards'; ui.cardBack.textContent = '';
+				if (ui.cardFront) ui.cardFront.textContent = 'No cards';
+				if (ui.cardBack) ui.cardBack.textContent = '';
+				if (cardEl) cardEl.classList.remove('is-flipped');
 			}
 		}
 
@@ -270,7 +288,42 @@
 			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return; deck.currentIndex = Math.min(deck.cards.length - 1, (deck.currentIndex||0) + 1); renderCard();
 		});
 		document.getElementById('flip-card-btn')?.addEventListener('click', ()=>{
-			const cardEl = document.querySelector('.card'); if (!cardEl) return; cardEl.classList.toggle('flipped');
+			const cardEl = document.querySelector('.card'); if (!cardEl) return; cardEl.classList.toggle('is-flipped');
+		});
+
+		// delegated card actions: edit / delete
+		document.addEventListener('click', (e)=>{
+			const actionEl = e.target.closest('[data-action]');
+			if (!actionEl) return;
+			const action = actionEl.dataset.action;
+			const deck = DeckStore.getDeck(Number(currentDeckId));
+			if (!deck) return alert('Select a deck first');
+			const idx = deck.currentIndex || 0;
+			const card = deck.cards[idx];
+
+			if (action === 'edit-card'){
+				if (!card) return alert('No card to edit');
+				const form = document.createElement('form');
+				form.innerHTML = `
+					<label>Front<br/><input name="front" required autofocus value="${escapeHtml(card.front)}" /></label>
+					<label style="display:block;margin-top:8px">Back<br/><input name="back" value="${escapeHtml(card.back)}" /></label>
+					<div style="margin-top:12px"><button type="submit">Save</button> <button type="button" class="cancel">Cancel</button></div>
+				`;
+				form.addEventListener('submit', (ev)=>{
+					ev.preventDefault(); card.front = form.front.value.trim(); card.back = form.back.value.trim(); Modal.close(); renderCard();
+				});
+				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
+				Modal.open({ title: 'Edit Card', html: form });
+			}
+
+			if (action === 'delete-card'){
+				if (!card) return alert('No card to delete');
+				if (!confirm('Delete this card?')) return;
+				deck.cards.splice(idx,1);
+				// fix index
+				if (deck.currentIndex >= deck.cards.length) deck.currentIndex = Math.max(0, deck.cards.length - 1);
+				renderCard();
+			}
 		});
 
 		// initial render
