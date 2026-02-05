@@ -160,6 +160,8 @@
 		};
 
 		let currentDeckId = null;
+		let studyState = null; // { deckId, index }
+		let studyKeyHandler = null;
 
 		const ui = {
 			deckList: document.getElementById('deck-list'),
@@ -192,7 +194,7 @@
 			renderCard();
 		}
 
-		function renderCard(){
+    		function renderCard(){
 			const deck = DeckStore.getDeck(Number(currentDeckId));
 			const cardEl = document.querySelector('.card');
 			// ensure inner wrapper exists for 3D flip
@@ -212,7 +214,9 @@
 				if (cardEl) cardEl.classList.remove('is-flipped');
 				return;
 			}
-			const idx = deck.currentIndex || 0;
+
+			// if in study mode for this deck, use study index, otherwise deck.currentIndex
+			const idx = (studyState && studyState.deckId === deck.id) ? (studyState.index || 0) : (deck.currentIndex || 0);
 			const card = deck.cards[idx];
 			if (card){
 				if (ui.cardFront) ui.cardFront.textContent = card.front || '';
@@ -282,10 +286,16 @@
 
 		// basic card controls: prev, next, flip
 		document.getElementById('prev-card-btn')?.addEventListener('click', ()=>{
-			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return; deck.currentIndex = Math.max(0, (deck.currentIndex||0) - 1); renderCard();
+			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return;
+			if (studyState && studyState.deckId === deck.id){ studyState.index = Math.max(0, (studyState.index||0) - 1); }
+			else { deck.currentIndex = Math.max(0, (deck.currentIndex||0) - 1); }
+			renderCard();
 		});
 		document.getElementById('next-card-btn')?.addEventListener('click', ()=>{
-			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return; deck.currentIndex = Math.min(deck.cards.length - 1, (deck.currentIndex||0) + 1); renderCard();
+			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return;
+			if (studyState && studyState.deckId === deck.id){ studyState.index = Math.min(deck.cards.length - 1, (studyState.index||0) + 1); }
+			else { deck.currentIndex = Math.min(deck.cards.length - 1, (deck.currentIndex||0) + 1); }
+			renderCard();
 		});
 		document.getElementById('flip-card-btn')?.addEventListener('click', ()=>{
 			const cardEl = document.querySelector('.card'); if (!cardEl) return; cardEl.classList.toggle('is-flipped');
@@ -312,6 +322,52 @@
 				form.addEventListener('submit', (ev)=>{
 					ev.preventDefault(); card.front = form.front.value.trim(); card.back = form.back.value.trim(); Modal.close(); renderCard();
 				});
+
+				// Study mode: keyboard shortcuts and cleanup
+				function enterStudyMode(deckId){
+					const deck = DeckStore.getDeck(Number(deckId));
+					if (!deck) return;
+					// set current deck and study state
+					selectDeck(deck.id);
+					studyState = { deckId: deck.id, index: 0 };
+
+					// key handler for study mode
+					studyKeyHandler = function(e){
+						// ignore if focus is on an input/textarea
+						const tag = document.activeElement && document.activeElement.tagName;
+						if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+
+						if (e.key === 'ArrowLeft'){
+							e.preventDefault(); document.getElementById('prev-card-btn')?.click();
+						} else if (e.key === 'ArrowRight'){
+							e.preventDefault(); document.getElementById('next-card-btn')?.click();
+						} else if (e.key === ' ' || e.code === 'Space'){
+							e.preventDefault(); document.getElementById('flip-card-btn')?.click();
+						} else if (e.key === 'Escape'){
+							e.preventDefault(); exitStudyMode();
+						}
+					};
+
+					document.addEventListener('keydown', studyKeyHandler);
+					// add visual indicator
+					document.documentElement.classList.add('is-studying');
+					renderCard();
+				}
+
+				function exitStudyMode(){
+					if (!studyState) return;
+					// remove handler
+					if (studyKeyHandler) { document.removeEventListener('keydown', studyKeyHandler); studyKeyHandler = null; }
+					studyState = null;
+					document.documentElement.classList.remove('is-studying');
+					// ensure card is unflipped
+					const cardEl = document.querySelector('.card'); if (cardEl) cardEl.classList.remove('is-flipped');
+					renderCard();
+				}
+
+				// expose for debugging/integration
+				window.enterStudyMode = enterStudyMode;
+				window.exitStudyMode = exitStudyMode;
 				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
 				Modal.open({ title: 'Edit Card', html: form });
 			}
