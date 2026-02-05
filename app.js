@@ -159,6 +159,23 @@
 			getDeck(id){ return this.decks.find(x=>x.id===id) || null; }
 		};
 
+		// attempt to load saved state
+		if (window.StorageHelpers && typeof window.StorageHelpers.loadState === 'function'){
+			const saved = window.StorageHelpers.loadState();
+			if (saved && saved.decks){
+				DeckStore.decks = saved.decks;
+				DeckStore.nextDeckId = saved.nextDeckId || (Math.max(0,...DeckStore.decks.map(d=>d.id))+1);
+				DeckStore.nextCardId = saved.nextCardId || (Math.max(0,...DeckStore.decks.flatMap(d=>d.cards.map(c=>c.id)))+1);
+			}
+		}
+
+		function persistState(){
+			if (window.StorageHelpers && typeof window.StorageHelpers.saveState === 'function'){
+				const payload = { decks: DeckStore.decks, nextDeckId: DeckStore.nextDeckId, nextCardId: DeckStore.nextCardId };
+				window.StorageHelpers.saveState(payload);
+			}
+		}
+
 		let currentDeckId = null;
 		let studyState = null; // { deckId, index }
 		let studyKeyHandler = null;
@@ -255,7 +272,7 @@
 					<div style="margin-top:12px"><button type="submit">Create</button> <button type="button" class="cancel">Cancel</button></div>
 				`;
 				form.addEventListener('submit', (ev)=>{
-					ev.preventDefault(); const name = (form.name.value || '').trim(); if (!name) return; const d = DeckStore.createDeck(name); Modal.close(); selectDeck(d.id); renderDeckList();
+					ev.preventDefault(); const name = (form.name.value || '').trim(); if (!name) return; const d = DeckStore.createDeck(name); Modal.close(); selectDeck(d.id); renderDeckList(); persistState();
 				});
 				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
 				Modal.open({ title: 'Create Deck', html: form });
@@ -277,7 +294,7 @@
 					ev.preventDefault(); const front = (form.front.value||'').trim(); const back = (form.back.value||'').trim(); if (!front) return;
 					const deck = DeckStore.getDeck(Number(currentDeckId));
 					deck.cards.push({ id: DeckStore.nextCardId++, front, back });
-					Modal.close(); renderCard();
+					Modal.close(); renderCard(); persistState();
 				});
 				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
 				Modal.open({ title: 'New Card', html: form });
@@ -287,14 +304,36 @@
 		// basic card controls: prev, next, flip
 		document.getElementById('prev-card-btn')?.addEventListener('click', ()=>{
 			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return;
-			if (studyState && studyState.deckId === deck.id){ studyState.index = Math.max(0, (studyState.index||0) - 1); }
-			else { deck.currentIndex = Math.max(0, (deck.currentIndex||0) - 1); }
+			// if search matches are present, navigate within matches
+			const matches = deck._searchMatches || null;
+			if (matches && matches.length){
+				// find current position in matches
+				const cur = (studyState && studyState.deckId === deck.id) ? (studyState.index||0) : (deck.currentIndex||0);
+				let pos = matches.indexOf(cur);
+				if (pos === -1) pos = 0;
+				pos = Math.max(0, pos - 1);
+				const newIdx = matches[pos];
+				if (studyState && studyState.deckId === deck.id) studyState.index = newIdx; else deck.currentIndex = newIdx;
+			} else {
+				if (studyState && studyState.deckId === deck.id){ studyState.index = Math.max(0, (studyState.index||0) - 1); }
+				else { deck.currentIndex = Math.max(0, (deck.currentIndex||0) - 1); }
+			}
 			renderCard();
 		});
 		document.getElementById('next-card-btn')?.addEventListener('click', ()=>{
 			const deck = DeckStore.getDeck(Number(currentDeckId)); if (!deck || !deck.cards.length) return;
-			if (studyState && studyState.deckId === deck.id){ studyState.index = Math.min(deck.cards.length - 1, (studyState.index||0) + 1); }
-			else { deck.currentIndex = Math.min(deck.cards.length - 1, (deck.currentIndex||0) + 1); }
+			const matches = deck._searchMatches || null;
+			if (matches && matches.length){
+				const cur = (studyState && studyState.deckId === deck.id) ? (studyState.index||0) : (deck.currentIndex||0);
+				let pos = matches.indexOf(cur);
+				if (pos === -1) pos = 0;
+				pos = Math.min(matches.length - 1, pos + 1);
+				const newIdx = matches[pos];
+				if (studyState && studyState.deckId === deck.id) studyState.index = newIdx; else deck.currentIndex = newIdx;
+			} else {
+				if (studyState && studyState.deckId === deck.id){ studyState.index = Math.min(deck.cards.length - 1, (studyState.index||0) + 1); }
+				else { deck.currentIndex = Math.min(deck.cards.length - 1, (deck.currentIndex||0) + 1); }
+			}
 			renderCard();
 		});
 		document.getElementById('flip-card-btn')?.addEventListener('click', ()=>{
@@ -320,7 +359,7 @@
 					<div style="margin-top:12px"><button type="submit">Save</button> <button type="button" class="cancel">Cancel</button></div>
 				`;
 				form.addEventListener('submit', (ev)=>{
-					ev.preventDefault(); card.front = form.front.value.trim(); card.back = form.back.value.trim(); Modal.close(); renderCard();
+					ev.preventDefault(); card.front = form.front.value.trim(); card.back = form.back.value.trim(); Modal.close(); renderCard(); persistState();
 				});
 
 				// Study mode: keyboard shortcuts and cleanup
@@ -379,12 +418,39 @@
 				// fix index
 				if (deck.currentIndex >= deck.cards.length) deck.currentIndex = Math.max(0, deck.cards.length - 1);
 				renderCard();
+				persistState();
 			}
 		});
 
 		// initial render
 		renderDeckList();
 		if (DeckStore.decks.length) selectDeck(DeckStore.decks[0].id);
+
+		// --- Search: debounced 300ms ---
+		const searchInput = document.getElementById('card-search');
+		const searchCount = document.getElementById('search-count');
+
+		function debounce(fn, wait){
+			let t = null; return function(...args){ clearTimeout(t); t = setTimeout(()=> fn.apply(this,args), wait); };
+		}
+
+		function runSearch(query){
+			query = String(query || '').trim().toLowerCase();
+			const deck = DeckStore.getDeck(Number(currentDeckId));
+			if (!deck || !deck.cards.length){ if (searchCount) searchCount.textContent = ''; if (deck) deck._searchMatches = null; return; }
+			if (!query){ deck._searchMatches = null; if (searchCount) searchCount.textContent = ''; return; }
+			const indices = deck.cards.map((c,i)=> ({c,i})).filter(x=> (String(x.c.front||'').toLowerCase().includes(query) || String(x.c.back||'').toLowerCase().includes(query))).map(x=>x.i);
+			deck._searchMatches = indices;
+			if (searchCount) searchCount.textContent = `${indices.length} match${indices.length===1?'':'es'}`;
+			// jump to first match
+			if (indices.length) { const newIdx = indices[0]; if (studyState && studyState.deckId === deck.id) studyState.index = newIdx; else deck.currentIndex = newIdx; }
+			renderCard();
+		}
+
+		const debouncedSearch = debounce(runSearch,300);
+		if (searchInput){
+			searchInput.addEventListener('input', (e)=> debouncedSearch(e.target.value));
+		}
 	});
 
 })();
