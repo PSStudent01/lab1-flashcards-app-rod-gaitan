@@ -104,9 +104,9 @@
 
 			document.body.appendChild(overlay);
 
-			// hide background from assistive tech
-			const appLayout = document.querySelector('.app-layout');
-			if (appLayout) appLayout.setAttribute('aria-hidden','true');
+			// hide background from assistive tech (use app root)
+			const appRoot = document.getElementById('app') || document.querySelector('.app');
+			if (appRoot) appRoot.setAttribute('aria-hidden','true');
 
 			// prevent background scroll
 			document.documentElement.style.overflow = 'hidden';
@@ -126,8 +126,8 @@
 			// remove DOM
 			modalRoot.remove(); modalRoot = null;
 			// restore background
-			const appLayout = document.querySelector('.app-layout');
-			if (appLayout) appLayout.removeAttribute('aria-hidden');
+			const appRoot = document.getElementById('app') || document.querySelector('.app');
+			if (appRoot) appRoot.removeAttribute('aria-hidden');
 			document.documentElement.style.overflow = '';
 			// return focus
 			try{ if (lastActiveElement && typeof lastActiveElement.focus === 'function') lastActiveElement.focus(); }catch(e){}
@@ -180,6 +180,37 @@
 		let studyState = null; // { deckId, index }
 		let studyKeyHandler = null;
 
+		// Study mode functions (top-level in DOMContentLoaded)
+		function enterStudyMode(deckId){
+			const deck = DeckStore.getDeck(Number(deckId));
+			if (!deck) return;
+			selectDeck(deck.id);
+			studyState = { deckId: deck.id, index: 0 };
+			studyKeyHandler = function(e){
+				const tag = document.activeElement && document.activeElement.tagName;
+				if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+				if (e.key === 'ArrowLeft'){ e.preventDefault(); document.getElementById('prev-card-btn')?.click(); }
+				else if (e.key === 'ArrowRight'){ e.preventDefault(); document.getElementById('next-card-btn')?.click(); }
+				else if (e.key === ' ' || e.code === 'Space'){ e.preventDefault(); document.getElementById('flip-card-btn')?.click(); }
+				else if (e.key === 'Escape'){ e.preventDefault(); exitStudyMode(); }
+			};
+			document.addEventListener('keydown', studyKeyHandler);
+			document.documentElement.classList.add('is-studying');
+			renderCard();
+		}
+
+		function exitStudyMode(){
+			if (!studyState) return;
+			if (studyKeyHandler) { document.removeEventListener('keydown', studyKeyHandler); studyKeyHandler = null; }
+			studyState = null;
+			document.documentElement.classList.remove('is-studying');
+			const cardEl = document.querySelector('.card'); if (cardEl) cardEl.classList.remove('is-flipped');
+			renderCard();
+		}
+
+		window.enterStudyMode = enterStudyMode;
+		window.exitStudyMode = exitStudyMode;
+
 		const ui = {
 			deckList: document.getElementById('deck-list'),
 			deckTitle: document.getElementById('deck-title'),
@@ -190,13 +221,28 @@
 		function renderDeckList(){
 			const root = ui.deckList; if (!root) return;
 			root.innerHTML = '';
+			if (!DeckStore.decks.length){
+				root.innerHTML = `
+					<li class="empty-state" role="listitem">
+						<div class="empty-state" style="padding:16px;text-align:center">
+							<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18M5 11h14M7 15h10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+							<h3>No decks yet</h3>
+							<p>Create your first deck to get started.</p>
+							<button type="button" class="create-deck-empty">Create Deck</button>
+						</div>
+					</li>`;
+				// attach handler
+				const btn = root.querySelector('.create-deck-empty'); if (btn) btn.addEventListener('click', ()=> document.getElementById('new-deck-btn')?.click());
+				return;
+			}
 			DeckStore.decks.forEach(d => {
 				const li = document.createElement('li');
 				li.tabIndex = 0;
 				li.dataset.deckId = d.id;
 				li.className = 'deck-item';
-				li.innerHTML = `<span class="deck-name">${escapeHtml(d.name)}</span> <button class="deck-delete" aria-label="Delete ${escapeHtml(d.name)}">✕</button>`;
-				if (d.id === currentDeckId) li.classList.add('active');
+				li.setAttribute('role','listitem');
+				li.innerHTML = `<span class="deck-name">${escapeHtml(d.name)}</span> <button type="button" class="deck-delete" aria-label="Delete ${escapeHtml(d.name)}">✕</button>`;
+				if (d.id === currentDeckId){ li.classList.add('active'); li.setAttribute('aria-current','true'); }
 				root.appendChild(li);
 			});
 		}
@@ -206,31 +252,65 @@
 		function selectDeck(id){
 			const deck = DeckStore.getDeck(Number(id));
 			currentDeckId = deck ? deck.id : null;
-			if (ui.deckTitle) ui.deckTitle.textContent = deck ? deck.name : 'Select a deck';
+			if (ui.deckTitle) {
+				ui.deckTitle.textContent = deck ? deck.name : 'Select a deck';
+				ui.deckTitle.focus();
+			}
 			renderDeckList();
 			renderCard();
 		}
 
     		function renderCard(){
 			const deck = DeckStore.getDeck(Number(currentDeckId));
-			const cardEl = document.querySelector('.card');
+				const cardArea = document.querySelector('.card-area');
+				let cardEl = document.querySelector('.card');
 			// ensure inner wrapper exists for 3D flip
-			if (cardEl && !cardEl.querySelector('.card-inner')){
-				const front = cardEl.querySelector('.card-front');
-				const back = cardEl.querySelector('.card-back');
-				const inner = document.createElement('div'); inner.className = 'card-inner';
-				// move faces into inner
-				if (front) inner.appendChild(front);
-				if (back) inner.appendChild(back);
-				cardEl.appendChild(inner);
-			}
+				if (!cardEl && cardArea){
+					// create base structure
+					cardArea.innerHTML = `<article class="card">
+						<div class="card-front"></div>
+						<div class="card-back"></div>
+					</article>`;
+					cardEl = document.querySelector('.card');
+				}
 
-			if (!deck){
-				if (ui.cardFront) ui.cardFront.textContent = 'Front';
-				if (ui.cardBack) ui.cardBack.textContent = 'Back';
-				if (cardEl) cardEl.classList.remove('is-flipped');
-				return;
-			}
+				// if no deck, show empty-state
+				if (!deck){
+					if (cardArea){
+						cardArea.innerHTML = `
+							<div class="empty-state" role="region" aria-live="polite">
+								<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+								<h3>No deck selected</h3>
+								<p>Select or create a deck from the left to begin.</p>
+							</div>`;
+					}
+					return;
+				}
+
+				// deck exists but has no cards -> show empty instructive state
+				if (deck.cards.length === 0){
+					if (cardArea){
+						cardArea.innerHTML = `
+							<div class="empty-state" role="region" aria-live="polite">
+								<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18M5 11h14M7 15h10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+								<h3>No cards in this deck</h3>
+								<p>Add your first card to start studying.</p>
+								<button type="button" class="create-card-empty">Add Card</button>
+							</div>`;
+						const btn = cardArea.querySelector('.create-card-empty'); if (btn) btn.addEventListener('click', ()=> document.getElementById('new-card-btn')?.click());
+					}
+					return;
+				}
+
+				// ensure inner wrapper exists for 3D flip when there are cards
+				if (cardEl && !cardEl.querySelector('.card-inner')){
+					const front = cardEl.querySelector('.card-front');
+					const back = cardEl.querySelector('.card-back');
+					const inner = document.createElement('div'); inner.className = 'card-inner';
+					if (front) inner.appendChild(front);
+					if (back) inner.appendChild(back);
+					cardEl.appendChild(inner);
+				}
 
 			// if in study mode for this deck, use study index, otherwise deck.currentIndex
 			const idx = (studyState && studyState.deckId === deck.id) ? (studyState.index || 0) : (deck.currentIndex || 0);
@@ -252,7 +332,7 @@
 				const del = e.target.closest('.deck-delete');
 				if (del){
 					const li = del.closest('li'); const id = Number(li.dataset.deckId);
-					if (confirm('Delete this deck?')){ DeckStore.deleteDeck(id); if (currentDeckId===id) currentDeckId = null; renderDeckList(); renderCard(); }
+					if (confirm('Delete this deck?')){ DeckStore.deleteDeck(id); if (currentDeckId===id) currentDeckId = null; renderDeckList(); renderCard(); persistState(); }
 					return;
 				}
 				const li = e.target.closest('li'); if (!li) return; selectDeck(li.dataset.deckId);
@@ -362,51 +442,10 @@
 					ev.preventDefault(); card.front = form.front.value.trim(); card.back = form.back.value.trim(); Modal.close(); renderCard(); persistState();
 				});
 
-				// Study mode: keyboard shortcuts and cleanup
-				function enterStudyMode(deckId){
-					const deck = DeckStore.getDeck(Number(deckId));
-					if (!deck) return;
-					// set current deck and study state
-					selectDeck(deck.id);
-					studyState = { deckId: deck.id, index: 0 };
 
-					// key handler for study mode
-					studyKeyHandler = function(e){
-						// ignore if focus is on an input/textarea
-						const tag = document.activeElement && document.activeElement.tagName;
-						if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
 
-						if (e.key === 'ArrowLeft'){
-							e.preventDefault(); document.getElementById('prev-card-btn')?.click();
-						} else if (e.key === 'ArrowRight'){
-							e.preventDefault(); document.getElementById('next-card-btn')?.click();
-						} else if (e.key === ' ' || e.code === 'Space'){
-							e.preventDefault(); document.getElementById('flip-card-btn')?.click();
-						} else if (e.key === 'Escape'){
-							e.preventDefault(); exitStudyMode();
-						}
-					};
-
-					document.addEventListener('keydown', studyKeyHandler);
-					// add visual indicator
-					document.documentElement.classList.add('is-studying');
-					renderCard();
-				}
-
-				function exitStudyMode(){
-					if (!studyState) return;
-					// remove handler
-					if (studyKeyHandler) { document.removeEventListener('keydown', studyKeyHandler); studyKeyHandler = null; }
-					studyState = null;
-					document.documentElement.classList.remove('is-studying');
-					// ensure card is unflipped
-					const cardEl = document.querySelector('.card'); if (cardEl) cardEl.classList.remove('is-flipped');
-					renderCard();
-				}
-
-				// expose for debugging/integration
-				window.enterStudyMode = enterStudyMode;
-				window.exitStudyMode = exitStudyMode;
+				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
+				Modal.open({ title: 'Edit Card', html: form });
 				form.querySelector('.cancel').addEventListener('click', ()=> Modal.close());
 				Modal.open({ title: 'Edit Card', html: form });
 			}

@@ -31,14 +31,14 @@
 
     <aside class="sidebar">
       <h2>Decks</h2>
-      <ul class="deck-list" id="deck-list">
-        <li data-deck-id="1" tabindex="0">Sample Deck</li>
+      <ul class="deck-list" id="deck-list" role="list">
+        <li data-deck-id="1" tabindex="0" role="listitem">Sample Deck</li>
       </ul>
     </aside>
 
     <main class="main-content">
       <section class="deck-header">
-        <h2 id="deck-title">Select a deck</h2>
+        <h2 id="deck-title" tabindex="-1">Select a deck</h2>
         <div class="deck-toolbar">
           <input type="search" id="card-search" placeholder="Search cards" aria-label="Search cards in deck">
           <span id="search-count" aria-live="polite" style="margin-left:8px;color:var(--muted)"></span>
