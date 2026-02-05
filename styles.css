@@ -1,0 +1,144 @@
+/* Base styles for Flashcards app — variables + responsive grid */
+:root{
+  --bg: #f7faf9;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-600: #1e40af;
+  --border: rgba(15,23,42,0.06);
+  --radius: 10px;
+  --gap: 16px;
+  --sidebar-w: 260px;
+  --header-h: 64px;
+  --footer-h: 44px;
+  --max-content-w: 1100px;
+}
+
+/* Dark mode variables (respected when user prefers dark) */
+@media (prefers-color-scheme: dark) {
+  :root{
+    --bg: #0b1220;
+    --surface: #071025;
+    --muted: #94a3b8;
+    --accent: #60a5fa;
+    --accent-600: #2563eb;
+    --border: rgba(255,255,255,0.06);
+  }
+  body{color:#e6eef8}
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background:var(--bg);
+  color:#0f172a;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Header and footer */
+.app-header{
+  height:var(--header-h);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 var(--gap);
+  background:linear-gradient(180deg,var(--surface),#fbfbfd);
+  border-bottom:1px solid var(--border);
+}
+.app-header h1{font-size:1.125rem;margin:0}
+
+.app-footer{
+  height:var(--footer-h);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 var(--gap);
+  border-top:1px solid var(--border);
+  background:transparent;
+  color:var(--muted);
+  font-size:0.95rem;
+}
+
+/* Layout: responsive two-column -> single column */
+.app-layout{
+  display:grid;
+  /* fixed-width sidebar + fluid main column */
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap:var(--gap);
+  padding:var(--gap);
+  max-width:var(--max-content-w);
+  margin:0 auto;
+  align-items:start;
+  min-height: calc(100vh - var(--header-h) - var(--footer-h));
+  width:100%;
+}
+
+.sidebar{
+  background:var(--surface);
+  padding:var(--gap);
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  overflow:auto;
+  /* ensure the sidebar remains at the fixed width */
+  min-width:var(--sidebar-w);
+}
+.sidebar ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.sidebar li{padding:8px;border-radius:8px;cursor:pointer}
+.sidebar li:focus{outline:2px solid rgba(37,99,235,0.18)}
+
+.main-content{display:flex;flex-direction:column;gap:12px}
+.deck-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.deck-toolbar{display:flex;gap:8px;align-items:center}
+.deck-toolbar input[type="search"],
+.deck-toolbar button{
+  padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+}
+
+/* Card area */
+.card-area{display:flex;align-items:center;justify-content:center;min-height:320px}
+.card{
+  width:100%;max-width:720px;background:var(--surface);padding:28px;border-radius:var(--radius);border:1px solid var(--border);
+  box-shadow:0 6px 18px rgba(2,6,23,0.04);
+  display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;text-align:center;
+}
+.card-front,.card-back{font-size:1.125rem;color:#0f172a}
+.card-back{display:none}
+.card.flipped .card-front{display:none}
+.card.flipped .card-back{display:block}
+
+.card-controls{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.card-controls button{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface)}
+
+/* Utility */
+button{cursor:pointer}
+:focus{outline:none}
+:focus-visible{outline:3px solid rgba(37,99,235,0.18);outline-offset:2px}
+
+/* Improved focus styles for keyboard users (buttons, links, sidebar items) */
+button:focus-visible,
+a:focus-visible,
+.sidebar li:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 4px rgba(37,99,235,0.12);
+  border-radius:8px;
+}
+
+/* make interactive elements slightly more prominent on hover/focus */
+button:hover, .sidebar li:hover, a:hover{transform:translateY(-1px)}
+button, a, .sidebar li{transition:box-shadow .12s,transform .08s}
+
+/* Responsive adjustments */
+@media (max-width:900px){
+  .app-layout{grid-template-columns:1fr;padding:12px}
+  .sidebar{order:2}
+  .main-content{order:1}
+  .card-area{min-height:260px}
+}
+
+@media (max-width:420px){
+  :root{--gap:12px;--sidebar-w:200px}
+  .card{padding:18px}
+  .app-header h1{font-size:1rem}
+}

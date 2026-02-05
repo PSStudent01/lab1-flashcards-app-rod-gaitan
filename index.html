@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Flashcards</title>
+  <!--<style>
+    :root{--gap:16px;--sidebar:240px}
+    html,body{height:100%;}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;}
+    .app{display:grid;grid-template-rows:64px 1fr 44px;grid-template-columns:var(--sidebar) 1fr;grid-template-areas:"header header" "sidebar main" "footer footer";height:100vh}
+    header{grid-area:header;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #eee;background:#fafafa}
+    aside{grid-area:sidebar;padding:16px;border-right:1px solid #eee;overflow:auto;background:#fff}
+    main{grid-area:main;padding:24px;overflow:auto;background:#fff}
+    footer{grid-area:footer;padding:8px 16px;border-top:1px solid #eee;text-align:center;background:#fafafa}
+    .deck-list{list-style:none;padding:0;margin:8px 0}
+    .deck-list li{padding:8px;border-radius:6px;cursor:pointer}
+    .card{max-width:640px;margin:0 auto;padding:24px;border:1px solid #ddd;border-radius:8px;text-align:center;background:#fff}
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:12px}
+  </style>-->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app" role="application" aria-label="Flashcards application">
+    <header>
+      <h1>Flashcards</h1>
+      <nav aria-label="App actions">
+        <button id="new-deck">New Deck</button>
+      </nav>
+    </header>
+
+    <aside>
+      <h2>Decks</h2>
+      <ul class="deck-list" id="deck-list">
+        <li data-deck-id="1" tabindex="0">Sample Deck</li>
+      </ul>
+    </aside>
+
+    <main>
+      <section aria-live="polite">
+        <article class="card" id="card">
+          <h3 id="card-front">Card Front</h3>
+          <p id="card-back" hidden>Card Back</p>
+        </article>
+
+        <div class="controls">
+          <button id="prev">Prev</button>
+          <button id="flip">Flip</button>
+          <button id="next">Next</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>&copy; 2026 Flashcards</span>
+    </footer>
+  </div>
+    <script src="app.js"></script>
+</body>
+</html>
